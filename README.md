@@ -1,30 +1,66 @@
-# seds537-robust-forecasting
+# SEDS 537 — Robust Time-Series Forecasting
+### Evaluating Forecasting Models under Noise and Anomaly Injection
 
-A robustness study for time-series forecasting models using the
-[Jena Climate dataset](https://www.bgc-jena.mpg.de/wetter/).  
-Three baseline models (ARIMA, Vanilla RNN, Stacked LSTM) are trained on clean
-data, then evaluated under synthetic corruptions (Gaussian noise and point
-anomalies) to measure degradation in forecast accuracy.
+**Student:** Toprak Zeybek — 323011022  
+**Course:** SEDS 537 Machine Learning · İzmir Institute of Technology  
+**Instructor:** Prof. Dr. Aytuğ Onan · Spring 2026  
+**Dataset:** Jena Climate (2009–2016) — [download link](https://raw.githubusercontent.com/gilbutITbook/006975/master/datasets/jena_climate/jena_climate_2009_2016.csv)
 
 ---
 
-## Project structure
+## Overview
+
+Time-series forecasting models are typically evaluated on clean data, yet real-world sensor streams
+are often corrupted by noise and anomalies. This project asks: **how robust are modern forecasting
+architectures when the test data is messy?**
+
+Three baseline models are trained on clean data and evaluated under two synthetic corruption regimes.
+A Temporal Transformer is proposed as the primary method, motivated by its global self-attention
+mechanism which can "outvote" locally corrupted positions — a property that RNNs and LSTMs cannot
+offer because they propagate hidden state sequentially.
+
+---
+
+## Models
+
+| Role | Model | Key property |
+|---|---|---|
+| Baseline 1 | **ARIMA** | Classical generative model; immune to test-time input corruption |
+| Baseline 2 | **Vanilla RNN** | Single recurrent layer (64 hidden units) |
+| Baseline 3 | **Stacked LSTM** | 2 layers, 128 hidden, MC-Dropout uncertainty |
+| **Proposed** | **Temporal Transformer** | Multi-head self-attention (4 heads, 2 layers, d_model=64) |
+
+---
+
+## Project Structure
 
 ```
 seds537-robust-forecasting/
 ├── data/
-│   ├── download_data.py      # one-off dataset download script
-│   └── raw/                  # CSV lives here after download
+│   ├── download_data.py           # one-off dataset download
+│   └── raw/                       # jena_climate_2009_2016.csv
+│
 ├── src/
-│   ├── data_loader.py        # loading, cleaning, normalisation, windowing
-│   ├── corruption.py         # Gaussian noise & point-anomaly injection
-│   ├── evaluate.py           # MAE / RMSE / MAPE metrics
+│   ├── data_loader.py             # clean / normalise / window
+│   ├── corruption.py              # Gaussian noise + point anomaly injection
+│   ├── evaluate.py                # MAE / RMSE / MAPE
 │   └── models/
-│       ├── arima_model.py    # statsmodels ARIMA wrapper
-│       ├── rnn_model.py      # PyTorch vanilla RNN
-│       └── lstm_model.py     # PyTorch stacked LSTM + MC-Dropout
+│       ├── arima_model.py         # statsmodels ARIMA wrapper
+│       ├── rnn_model.py           # PyTorch vanilla RNN
+│       ├── lstm_model.py          # PyTorch stacked LSTM + MC-Dropout
+│       └── transformer_model.py   # PyTorch Temporal Transformer (proposed)
+│
 ├── experiments/
-│   └── run_baselines.py      # main experiment entry point
+│   ├── run_baselines.py           # train all models on clean data
+│   ├── run_corruption.py          # robustness study (core experiment)
+│   ├── plot_results.py            # all publication figures
+│   └── error_analysis.py         # failure case investigation
+│
+├── results/
+│   ├── checkpoints/               # saved .pt model weights
+│   ├── metrics/                   # JSON + CSV results
+│   └── figures/                   # PNG figures
+│
 ├── requirements.txt
 └── README.md
 ```
@@ -33,65 +69,79 @@ seds537-robust-forecasting/
 
 ## Setup
 
-**1. Clone / navigate to the project root.**
-
-**2. (Optional) create a virtual environment:**
+### 1 — Create virtual environment
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate   # macOS / Linux
-# .venv\Scripts\activate    # Windows
+source .venv/bin/activate        # macOS / Linux
+# .venv\Scripts\activate         # Windows
 ```
 
-**3. Install dependencies:**
+### 2 — Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**4. Download the dataset:**
+### 3 — Download dataset
 
 ```bash
 python data/download_data.py
 ```
 
-This saves `jena_climate_2009_2016.csv` to `data/raw/`.
-
 ---
 
-## Running experiments
+## Running the Experiments
 
-### Baseline evaluation (clean data)
+### Step 1 — Baselines + Proposed Method (clean data)
 
 ```bash
 python experiments/run_baselines.py
 ```
 
-This will:
-1. Load and preprocess the Jena Climate CSV.
-2. Train ARIMA, RNN, and LSTM on the training split.
-3. Evaluate each model on the held-out test split.
-4. Print a results table with MAE, RMSE, and MAPE.
-5. Run an MC-Dropout uncertainty pass with the LSTM.
+Trains ARIMA, RNN, LSTM, and Transformer. Saves checkpoints and metrics.
+
+### Step 2 — Corruption Study
+
+```bash
+python experiments/run_corruption.py
+```
+
+Tests all models under Gaussian noise (σ = 0–2) and point anomalies (ratio = 0–20%).  
+Saves `corruption_results.json` and `corruption_results.csv`.
+
+### Step 3 — Generate Figures
+
+```bash
+python experiments/plot_results.py
+```
+
+Produces 11 figures in `results/figures/`.
+
+### Step 4 — Error Analysis
+
+```bash
+python experiments/error_analysis.py
+```
+
+Failure case investigation: error distributions, worst predictions, temporal patterns.
 
 ---
 
-## Key design decisions
+## Experimental Design
 
 | Aspect | Choice |
 |---|---|
-| Normalisation | Z-score, fit on training set only |
-| Input window | 720 steps (~5 days at 10-min intervals) |
+| Input window | 120 hourly steps ≈ 5 days (subsampled from 10-min to hourly) |
 | Forecast horizon | 1 step ahead |
-| Train / val / test split | 70 / 15 / 15 % (chronological) |
-| LSTM uncertainty | Monte-Carlo Dropout (`n_samples=50`) |
+| Normalisation | Z-score — fit on training set only (no leakage) |
+| Split | 70 / 15 / 15 % chronological |
+| Gaussian noise σ | 0.00, 0.25, 0.50, 1.00, 2.00 |
+| Point anomaly ratio | 0.00, 0.01, 0.05, 0.10, 0.20 |
+| Uncertainty method | MC-Dropout (n=50) on LSTM |
 
----
+## Reproducibility
 
-## Extending the study
-
-- Add corruption experiments by importing `src/corruption.py` functions and
-  passing corrupted arrays to `compute_metrics`.
-- Swap the target column (default `T (degC)`) by editing the `target_col`
-  argument in `load_and_preprocess`.
-- Tune model hyper-parameters at the top of `experiments/run_baselines.py`.
+Progress is tracked via GitHub commits.  
+All random seeds, hyper-parameters, and data preprocessing steps are fixed in code.  
+Re-running all four experiment scripts from a fresh clone reproduces all figures and metrics.

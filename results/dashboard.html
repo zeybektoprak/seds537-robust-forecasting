@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEDS 537 — Robust Forecasting Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
+    border-bottom: 3px solid #2563eb;
+    padding: 28px 40px;
+  }
+  .header h1 { font-size: 1.7rem; font-weight: 700; color: #fff; }
+  .header p  { font-size: 0.92rem; color: #94a3b8; margin-top: 6px; }
+  .header .tags { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .tag { background: #1d4ed8; color: #bfdbfe; font-size: 0.78rem; padding: 3px 10px; border-radius: 999px; }
+
+  /* Layout */
+  .container { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
+  .section-title {
+    font-size: 1.1rem; font-weight: 700; color: #60a5fa;
+    border-left: 4px solid #2563eb; padding-left: 12px;
+    margin: 36px 0 16px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  /* Stat cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .stat-card {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 12px; padding: 20px;
+    border-top: 3px solid var(--c);
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-3px); }
+  .stat-card .model { font-size: 0.78rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; }
+  .stat-card .val  { font-size: 2rem; font-weight: 800; color: var(--c); margin: 4px 0; }
+  .stat-card .label { font-size: 0.8rem; color: #64748b; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; background: #1e293b; font-size: 0.9rem; }
+  thead tr { background: #1d4ed8; }
+  thead th { padding: 12px 16px; text-align: left; color: #fff; font-weight: 600; }
+  tbody tr { border-bottom: 1px solid #334155; transition: background 0.15s; }
+  tbody tr:hover { background: #263548; }
+  tbody td { padding: 11px 16px; }
+  .best { color: #34d399; font-weight: 700; }
+  .worst { color: #f87171; }
+  .model-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: 0.78rem; font-weight: 600;
+  }
+
+  /* Figures grid */
+  .fig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 20px; }
+  .fig-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+    overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+  }
+  .fig-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.4); }
+  .fig-card img { width: 100%; display: block; background: #fff; }
+  .fig-caption {
+    padding: 10px 14px; font-size: 0.82rem; color: #94a3b8; text-align: center;
+  }
+
+  /* Lightbox */
+  .lightbox {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.92); z-index: 1000;
+    align-items: center; justify-content: center; flex-direction: column;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img { max-width: 90vw; max-height: 85vh; border-radius: 8px; }
+  .lightbox p { color: #94a3b8; margin-top: 12px; font-size: 0.88rem; }
+  .lightbox-close {
+    position: absolute; top: 20px; right: 28px;
+    font-size: 2rem; color: #fff; cursor: pointer; line-height: 1;
+  }
+
+  /* Ablation */
+  .ablation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .abl-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+    padding: 16px; border-top: 3px solid #f59e0b;
+  }
+  .abl-card .name { font-size: 0.82rem; color: #fbbf24; font-weight: 600; margin-bottom: 10px; }
+  .abl-card .metric { display: flex; justify-content: space-between; font-size: 0.82rem; color: #94a3b8; margin: 3px 0; }
+  .abl-card .metric span { color: #e2e8f0; font-weight: 600; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 32px; color: #334155; font-size: 0.82rem; margin-top: 40px; border-top: 1px solid #1e293b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Robust Time-Series Forecasting — Results Dashboard</h1>
+  <p>SEDS 537 Machine Learning · Izmir Institute of Technology · Spring 2026</p>
+  <div class="tags">
+    <span class="tag">Toprak Zeybek · 323011022</span>
+    <span class="tag">Prof. Dr. Aytug Onan</span>
+    <span class="tag">Jena Climate Dataset</span>
+    <span class="tag">ARIMA · RNN · LSTM · Transformer</span>
+    <span class="tag">Gaussian Noise + Point Anomaly</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── Clean Results ── -->
+  <div class="section-title">Clean Test Set — Baseline Performance</div>
+  <div class="stats-grid">
+    <div class="stat-card" style="--c:#4878d0">
+      <div class="model">ARIMA</div>
+      <div class="val">0.877</div>
+      <div class="label">MAE &nbsp;·&nbsp; Generative model</div>
+    </div>
+    <div class="stat-card" style="--c:#ee854a">
+      <div class="model">Vanilla RNN</div>
+      <div class="val">0.060</div>
+      <div class="label">MAE &nbsp;·&nbsp; 64 hidden units</div>
+    </div>
+    <div class="stat-card" style="--c:#6acc65">
+      <div class="model">Stacked LSTM</div>
+      <div class="val">0.059</div>
+      <div class="label">MAE &nbsp;·&nbsp; Best clean MAE</div>
+    </div>
+    <div class="stat-card" style="--c:#d65f5f">
+      <div class="model">Transformer</div>
+      <div class="val">0.082</div>
+      <div class="label">RMSE &nbsp;·&nbsp; Best RMSE & MAPE</div>
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:16px">
+    <table>
+      <thead>
+        <tr><th>Model</th><th>MAE</th><th>RMSE</th><th>MAPE (%)</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="model-badge" style="background:#4878d020;color:#4878d0">ARIMA</span></td>
+          <td class="worst">0.8769</td><td class="worst">1.0411</td><td class="worst">350.87</td>
+          <td style="color:#64748b;font-size:0.82rem">Immune to corruption · no test input</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#ee854a20;color:#ee854a">Vanilla RNN</span></td>
+          <td>0.0602</td><td>0.0860</td><td>34.05</td>
+          <td style="color:#64748b;font-size:0.82rem">Degrades fastest under noise</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#6acc6520;color:#6acc65">Stacked LSTM</span></td>
+          <td class="best">0.0592</td><td>0.0829</td><td>31.32</td>
+          <td style="color:#64748b;font-size:0.82rem">Best MAE · robust at high noise</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#d65f5f20;color:#d65f5f">Transformer</span></td>
+          <td>0.0599</td><td class="best">0.0824</td><td class="best">30.80</td>
+          <td style="color:#64748b;font-size:0.82rem">Best RMSE + MAPE · robust at low noise</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Gaussian Noise ── -->
+  <div class="section-title">Gaussian Noise — MAE Comparison</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Model</th><th>σ = 0.00</th><th>σ = 0.25</th><th>σ = 0.50</th><th>σ = 1.00</th><th>σ = 2.00</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="model-badge" style="background:#4878d020;color:#4878d0">ARIMA</span></td>
+          <td>0.8769</td><td>0.8769</td><td>0.8769</td><td>0.8769</td><td>0.8769</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#ee854a20;color:#ee854a">RNN</span></td>
+          <td>0.0602</td><td>0.1408</td><td>0.2516</td><td>0.4630</td><td class="worst">0.7723</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#6acc6520;color:#6acc65">LSTM</span></td>
+          <td>0.0592</td><td>0.1078</td><td>0.1811</td><td class="best">0.3223</td><td class="best">0.5313</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#d65f5f20;color:#d65f5f">Transformer</span></td>
+          <td>0.0599</td><td class="best">0.0971</td><td class="best">0.1600</td><td>0.3079</td><td>0.6035</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Point Anomaly ── -->
+  <div class="section-title">Point Anomaly — MAE Comparison</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Model</th><th>r = 0.00</th><th>r = 0.01</th><th>r = 0.05</th><th>r = 0.10</th><th>r = 0.20</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="model-badge" style="background:#4878d020;color:#4878d0">ARIMA</span></td>
+          <td>0.8769</td><td>0.8769</td><td>0.8769</td><td>0.8769</td><td>0.8769</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#ee854a20;color:#ee854a">RNN</span></td>
+          <td>0.0602</td><td>0.1692</td><td>0.4386</td><td>0.6118</td><td class="worst">0.8219</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#6acc6520;color:#6acc65">LSTM</span></td>
+          <td>0.0592</td><td>0.1220</td><td>0.3000</td><td class="best">0.4538</td><td class="best">0.6894</td>
+        </tr>
+        <tr>
+          <td><span class="model-badge" style="background:#d65f5f20;color:#d65f5f">Transformer</span></td>
+          <td>0.0599</td><td class="best">0.1116</td><td class="best">0.2865</td><td>0.4638</td><td>0.7322</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Ablation ── -->
+  <div class="section-title">Ablation Study — Transformer Components</div>
+  <div class="ablation-grid">
+    <div class="abl-card">
+      <div class="name">✅ Full Model (proposed)</div>
+      <div class="metric">Clean <span>0.0715</span></div>
+      <div class="metric">σ = 0.5 <span>0.1599</span></div>
+      <div class="metric">σ = 1.0 <span>0.2916</span></div>
+      <div class="metric">Anomaly 5% <span>0.2877</span></div>
+    </div>
+    <div class="abl-card">
+      <div class="name">❌ No Positional Enc.</div>
+      <div class="metric">Clean <span style="color:#f87171">0.0927</span></div>
+      <div class="metric">σ = 0.5 <span style="color:#f87171">0.1932</span></div>
+      <div class="metric">σ = 1.0 <span style="color:#f87171">0.3278</span></div>
+      <div class="metric">Anomaly 5% <span>0.2693</span></div>
+    </div>
+    <div class="abl-card">
+      <div class="name">1️⃣ 1 Encoder Layer</div>
+      <div class="metric">Clean <span>0.0726</span></div>
+      <div class="metric">σ = 0.5 <span>0.1724</span></div>
+      <div class="metric">σ = 1.0 <span>0.3028</span></div>
+      <div class="metric">Anomaly 5% <span>0.2897</span></div>
+    </div>
+    <div class="abl-card">
+      <div class="name">🔻 d_model = 32</div>
+      <div class="metric">Clean <span>0.0818</span></div>
+      <div class="metric">σ = 0.5 <span style="color:#34d399">0.1589</span></div>
+      <div class="metric">σ = 1.0 <span style="color:#34d399">0.2793</span></div>
+      <div class="metric">Anomaly 5% <span style="color:#34d399">0.2592</span></div>
+    </div>
+    <div class="abl-card">
+      <div class="name">🚫 No Dropout</div>
+      <div class="metric">Clean <span style="color:#34d399">0.0618</span></div>
+      <div class="metric">σ = 0.5 <span>0.1734</span></div>
+      <div class="metric">σ = 1.0 <span style="color:#f87171">0.3158</span></div>
+      <div class="metric">Anomaly 5% <span>0.2673</span></div>
+    </div>
+  </div>
+
+  <!-- ── Figures ── -->
+  <div class="section-title">All Figures (click to enlarge)</div>
+  <div class="fig-grid">
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/mae_vs_gaussian_noise.png" alt="">
+      <div class="fig-caption">MAE vs. Gaussian Noise Level σ</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/mae_vs_anomaly_ratio.png" alt="">
+      <div class="fig-caption">MAE vs. Point Anomaly Ratio</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/rmse_vs_gaussian_noise.png" alt="">
+      <div class="fig-caption">RMSE vs. Gaussian Noise Level σ</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/rmse_vs_anomaly_ratio.png" alt="">
+      <div class="fig-caption">RMSE vs. Point Anomaly Ratio</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/robustness_degradation_gaussian.png" alt="">
+      <div class="fig-caption">Relative MAE Degradation — Gaussian</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/robustness_degradation_anomaly.png" alt="">
+      <div class="fig-caption">Relative MAE Degradation — Anomaly</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/mc_uncertainty_gaussian.png" alt="">
+      <div class="fig-caption">MC-Dropout Uncertainty vs. Gaussian Noise</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/mc_uncertainty_anomaly.png" alt="">
+      <div class="fig-caption">MC-Dropout Uncertainty vs. Anomaly Ratio</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/predictions_clean.png" alt="">
+      <div class="fig-caption">True vs. Predicted — Clean Test Set (first 200)</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/mc_dropout_bands.png" alt="">
+      <div class="fig-caption">LSTM MC-Dropout ±2σ Uncertainty Bands</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/error_distributions.png" alt="">
+      <div class="fig-caption">Absolute Error Distributions (Clean)</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/clean_vs_corrupted_mae.png" alt="">
+      <div class="fig-caption">Clean vs. Corrupted (σ=2.0) MAE</div>
+    </div>
+    <div class="fig-card" onclick="openLightbox(this)">
+      <img src="figures/temporal_error_pattern.png" alt="">
+      <div class="fig-caption">Temporal Error Pattern Across Test Set</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-close" onclick="closeLightbox()">✕</div>
+  <img id="lightbox-img" src="" alt="">
+  <p id="lightbox-caption"></p>
+</div>
+
+<div class="footer">
+  SEDS 537 Machine Learning · Toprak Zeybek 323011022 · Izmir Institute of Technology · Spring 2026
+</div>
+
+<script>
+  function openLightbox(card) {
+    const img = card.querySelector('img');
+    const cap = card.querySelector('.fig-caption');
+    document.getElementById('lightbox-img').src = img.src;
+    document.getElementById('lightbox-caption').textContent = cap.textContent;
+    document.getElementById('lightbox').classList.add('active');
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('active');
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+
+</body>
+</html>
